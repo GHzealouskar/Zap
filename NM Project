@@ -1,0 +1,102 @@
+#Importing the required libraries
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+import warnings as wr
+wr.filterwarnings('ignore')
+
+# Load the dataset
+df = pd.read_csv('genres_v2.csv')
+df.head()
+
+# Preprocess the data
+# Example: scale numerical features
+scaler = StandardScaler()
+scaled_features = scaler.fit_transform(df[['danceability', 'energy', 'tempo']])
+
+# Split data into train and test sets
+X_train, X_test = train_test_split(scaled_features, test_size=0.2, random_state=42)
+
+# Apply KMeans clustering on training data
+k = 5  # Number of clusters
+kmeans = KMeans(n_clusters=k, random_state=42)
+clusters_train = kmeans.fit_predict(X_train)
+
+# Assign clusters to the DataFrame
+df['cluster'] = kmeans.predict(scaler.transform(df[['danceability', 'energy', 'tempo']]))
+
+# Visualize clusters on training data
+plt.figure(figsize=(10, 6))
+plt.scatter(X_train[:, 0], X_train[:, 1], c=clusters_train, cmap='viridis')
+plt.xlabel('Danceability')
+plt.ylabel('Energy')
+plt.title('Clusters of Tracks (Training Data)')
+plt.colorbar(label='Cluster')
+plt.show()
+
+# Bar chart for cluster distribution in training data
+cluster_counts_train = pd.Series(clusters_train).value_counts().sort_index()
+plt.figure(figsize=(8, 5))
+plt.bar(cluster_counts_train.index, cluster_counts_train.values)
+plt.xlabel('Cluster')
+plt.ylabel('Number of Tracks')
+plt.title('Cluster Distribution (Training Data)')
+plt.xticks(range(k))
+plt.show()
+
+# Use trained model to predict clusters on test data (for visualization purposes)
+clusters_test = kmeans.predict(X_test)
+
+# Visualize clusters on test data
+plt.figure(figsize=(10, 6))
+plt.scatter(X_test[:, 0], X_test[:, 1], c=clusters_test, cmap='viridis')
+plt.xlabel('Danceability')
+plt.ylabel('Energy')
+plt.title('Clusters of Tracks (Test Data)')
+plt.colorbar(label='Cluster')
+plt.show()
+
+# Bar chart for cluster distribution in test data
+cluster_counts_test = pd.Series(clusters_test).value_counts().sort_index()
+plt.figure(figsize=(8, 5))
+plt.bar(cluster_counts_test.index, cluster_counts_test.values)
+plt.xlabel('Cluster')
+plt.ylabel('Number of Tracks')
+plt.title('Cluster Distribution (Test Data)')
+plt.xticks(range(k))
+plt.show()
+
+# Recommend tracks from the same cluster as user's preferred tracks
+def recommend_tracks(cluster_id=None, input_song=None, num_tracks=10):
+    if input_song:
+        # Extract features of input song
+        input_song_features = scaler.transform(df[df['song_name'] == input_song][['danceability', 'energy', 'tempo']])
+        
+        # Predict cluster for input song
+        input_song_cluster = kmeans.predict(input_song_features)[0]
+        
+        # Retrieve songs from the same cluster
+        cluster_tracks = df[df['cluster'] == input_song_cluster].sample(num_tracks)
+    elif cluster_id is not None:
+        # Retrieve songs from the specified cluster
+        cluster_tracks = df[df['cluster'] == cluster_id].sample(num_tracks)
+    else:
+        return "Error: Please provide either an input song or a cluster ID."
+    
+    return cluster_tracks[['song_name', 'genre']]
+
+# Example: recommend tracks from cluster 2
+recommended_tracks = recommend_tracks(cluster_id=2)
+print("Recommended tracks from Cluster 2:")
+print(recommended_tracks)
+
+input_song = input("Your Favourite Song:")
+
+if input_song in df['song_name'].values:
+    recommended_tracks = recommend_tracks(input_song=input_song)
+    print("\nRecommended tracks based on your favorite song:")
+    print(recommended_tracks)
+else:
+    print(f"Song '{input_song}' not found in the dataset.")
